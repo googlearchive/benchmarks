@@ -9,7 +9,9 @@ specs vary wildly, so the only useful comparisons to draw from these numbers are
 
 ## Running benchmarks
 
-To run the benchmarks, you’ll need a basic HTTP server to serve your pages. If you have Python installed, you can run one of the following commands in the top level of the checked out benchmarks repo:
+The benchmarks can be run online over on [GitHub pages](http://polymerlabs.github.io/benchmarks/).
+
+To run the benchmarks locally, you’ll need a basic HTTP server to serve your pages. If you have Python installed, you can run one of the following commands in the top level of the checked out benchmarks repo:
 
 Python 2.x:
 
