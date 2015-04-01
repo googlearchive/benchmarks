@@ -1,0 +1,1811 @@
+<html><head><script>
+
+  // a tiny bit of sugar for `document.currentScript.ownerDocument`
+  // sadly `import` is reserved, so we need another name or
+  // you have to refer to this value `window.import`
+  Object.defineProperty(window, 'import', {
+    enumerable: true,
+    configurable: true,
+    get: function() {
+      return (document._currentScript || document.currentScript).ownerDocument;
+    }
+  });
+  
+  // copy own properties from 'api' to 'prototype, with name hinting for 'super'
+  function extend(prototype, api) {
+    if (prototype && api) {
+      // use only own properties of 'api'
+      Object.getOwnPropertyNames(api).forEach(function(n) {
+        // acquire property descriptor
+        var pd = Object.getOwnPropertyDescriptor(api, n);
+        if (pd) {
+          // clone property via descriptor
+          Object.defineProperty(prototype, n, pd);
+          // cache name-of-method for 'super' engine
+          /*
+          if (typeof pd.value == 'function') {
+            // hint the 'super' engine
+            pd.value.nom = n;
+          }
+          */
+        }
+      });
+    }
+    return prototype;
+  };
+
+  Event.prototype.keys = {
+    ESC_KEY: 27,
+    ENTER_KEY: 13
+  };
+  
+</script>
+<script>
+
+  Base = {
+
+    // (semi-)pluggable features for Base
+    _features: [],
+
+    addFeature: function(feature) {
+      this._features.push(feature);
+      extend(Base, feature);
+      delete Base.init;
+      delete Base.register;
+    },
+
+    registerCallback: function() {
+      // `this` context is a prototype, not an instance
+      var prototype = this;
+      this.registerFeatures(prototype);
+      this.registered(prototype);
+    },
+
+    registered: function(prototype) {
+      // for overriding
+    },
+
+    registerFeatures: function(prototype) {
+      var f$ = this._features;
+      for (var i=0, n=f$.length; i<n && (f=f$[i]); i++) {
+        f.register && f.register(prototype);
+      }
+    },
+
+    createdCallback: function() {
+      this.root = this;
+      this.beforeCreated();
+      this.initFeatures();
+      this.created();
+      this.afterCreated();
+    },
+
+    beforeCreated: function() {
+      // for overriding
+    },
+
+    initFeatures: function() {
+      var f$ = this._features;
+      for (var i=0, n=f$.length; i<n && (f=f$[i]); i++) {
+        f.init && f.init.call(this);
+      }
+    },
+
+    created: function() {
+      // for overriding
+    },
+
+    afterCreated: function() {
+      // for overriding
+    },
+
+    attachedCallback: function() {
+      // reserved for canonical behavior
+      this.attached();
+    },
+
+    attached: function() {
+      // for overriding
+    },
+
+    detachedCallback: function() {
+      // reserved for canonical behavior
+      this.detached();
+    },
+
+    detached: function() {
+      // for overriding
+    },
+
+    attributeChangedCallback: function() {
+      // reserved for canonical behavior
+      this.attributeChanged.apply(this, arguments);
+    },
+
+    attributeChanged: function() {
+      // for overriding
+    }
+
+  };
+
+</script>
+
+
+<script>
+
+  Base.__proto__ = HTMLElement.prototype;
+
+  Polymer = function(prototype) {
+    prototype.__proto__ = Base;
+    prototype.registerCallback();
+    document.registerElement(prototype.name, {prototype: prototype});
+  };
+
+  Polymer.log = {
+  };
+
+</script>
+<script>
+
+  Base.addFeature({
+    log: function() {
+      var args = Array.prototype.slice.call(arguments, 0); 
+      args[0] = '[%s]: ' + args[0];
+      args.splice(1, 0, this.localName);
+      console.log.apply(console, args);
+    }
+  });
+
+</script>
+<script>
+
+  /**
+   * Define public property API. 
+   *
+   * published: {
+   *   <property>: <Type || Object>,
+   *   ...
+   * 
+   *   // `foo` property can be assigned via attribute, will be deserialized to 
+   *   // the specified data-type. All `published` properties have this behavior.  
+   *   foo: String,
+   *
+   *   // `bar` property has additional behavior specifiers.
+   *   //   type: as above, type for (de-)serialization
+   *   //   notify: true to send a signal when a value is set to this property
+   *   //   reflect: true to serialize the property to an attribute 
+   *   //   readOnly: if true, the property has no setter
+   *   bar: {
+   *     type: Boolean,
+   *     notify: true 
+   *   }
+   * }
+   * 
+   * By itself the published feature doesn't do anything but provide property 
+   * information. Other features use this information to control behavior.
+   * 
+   * The `type` information is used by the `attributes` feature to convert 
+   * String values in attributes to properties.
+   * 
+   * The `bind-effects` feature uses property information to control property
+   * access.
+   *  
+   * Marking a property as `notify` causes a change in the property to 
+   * fire a non-bubbling event called `<property>-changed`. Elements that
+   * have enabled two-way binding to the property use this event to 
+   * observe changes.  
+   * 
+   * `readOnly` properties have a getter, but no setter. To set a read-only
+   * property, use the private setter method `_set_<property>(value)`.
+   * 
+   * @class feature: published
+   */
+  Base.addFeature({
+
+    published: {
+    },
+
+    nob: Object.create(null),
+
+    register: function(prototype) {
+      // TODO(sjmiles): move to a different module
+      if (prototype.addPropertyEffect) {
+        for (var n in prototype.published) {
+          if (prototype.isNotifyProperty(n)) {
+            prototype.addPropertyEffect(n, 'notify');
+          }
+        }
+      }
+    },
+    
+    getPublishInfo: function(property) {
+      var p = this.published[property];
+      if (typeof(p) === 'function') {
+        p = this.published[property] = {
+          type: p 
+        };
+      }
+      return p || Base.nob;
+    },
+
+    getPublishedPropertyType: function(property) {
+      return this.getPublishInfo(property).type;
+    },
+
+    isReadOnlyProperty: function(property) {
+      return this.getPublishInfo(property).readOnly;
+    },
+
+    isNotifyProperty: function(property) {
+      return this.getPublishInfo(property).notify;
+    },
+
+    isReflectedProperty: function(property) {
+      return this.getPublishInfo(property).reflect;
+    }
+
+  });
+
+</script>
+<script>
+
+  /*
+   * Support for `hostAttributes` property.
+   * 
+   * `hostAttributes` is a space separated string of attributes to 
+   * install on every instance.
+   * 
+   * There is room for addition `attributes` features, namely:
+   * 
+   * - potentially automatic handling of attributeChanged
+   * - capturing initial configuration values from attributes
+   * 
+   */
+  Base.addFeature({
+
+    init: function() {
+      if (this.hostAttributes) {
+        this.cloneAttributes(this, this.hostAttributes);
+      }
+    },
+
+    cloneAttributes: function(node, attr$) {
+      attr$.split(' ').forEach(function(a) {
+        node.setAttribute(a, '');
+      });
+    }
+
+  });
+
+  /*
+   * Support for `published` property.
+   * 
+   * `published` object maps the names of attributes that the user
+   * wants mapped as inputs to properties to the data-type of that property.
+   * 
+   * This feature overwrites `attributeChanged` to support automatic
+   * propagation of attribute values at run-time.
+   * 
+   * Static values in attributes at creation time can be captured by 
+   * `takeAttributes`.
+   *
+   * Example:
+   * 
+   * published: {
+   *   // values set to index attribute are converted to Number and propagated
+   *   // to index property
+   *   index: Number,
+   *   // values set to label attribute are propagated to index property
+   *   label: String
+   * } 
+   * 
+   * Supported types:
+   * 
+   * - Number
+   * - Boolean
+   * - String
+   * - Object (JSON)
+   * - Array (JSON)
+   * - Date
+   * 
+   */
+  Base.addFeature({
+
+    /* attribute publishing feature, requires `published` feature */
+
+    takeAttributes: function() {
+      for (var n in this.published) {
+        this.attributeChanged(n);
+      }
+    },
+
+    attributeChanged: function(name) {
+      var type = this.getPublishedPropertyType(name);
+      if (type) {
+        this.deserialize(name, type);
+      }
+    },
+
+    deserialize: function(name, type) {
+      var value = this.getAttribute(name);
+      switch(type) {
+        
+        case Number: 
+          value = Number(value) || this[name];
+          break;
+          
+        case Boolean: 
+          value = this.hasAttribute(name);
+          break;
+          
+        case Object: 
+        case Array: 
+          try {
+            value = JSON.parse(value);
+          } catch(x) {
+            return;
+          }
+          break;
+        
+        case Date: 
+          value = Date.parse(value);
+          break;
+          
+        case String:
+        default:
+          break;
+          
+      }
+      this[name] = value;
+    }
+
+  });
+
+</script>
+<script>
+
+  Base.addFeature({
+
+    register: function(prototype) {
+      var script = (document._currentScript || document.currentScript);
+      var prev = script.previousElementSibling;
+      if (prev && prev.localName === 'template') {
+        prototype._template = prev;
+      }
+    },
+
+    stampTemplate: function(template) {
+      this._stampTemplate(template || this._template, this.root);
+      // TODO(sjmiles): hello prollyfill
+      if (window.CustomElements && CustomElements.upgradeSubtree) {
+        CustomElements.upgradeSubtree(this.root);
+      }
+    },
+
+    _stampTemplate: function(template, target) {
+      // TODO(sorvell): light dom children will invalidate annotations.
+      // TODO(sjmiles): ^ why?
+      var instance = this.instanceTemplate(template);
+      // identify host
+      for (var e = instance.firstElementChild; e; e=e.nextElementSibling) {
+        e.host = this;
+      }
+      target.insertBefore(instance, target.firstElementChild);
+    },
+
+    instanceTemplate: function(template) {
+      return document.importNode(template.content, true);
+    }
+
+  });
+
+</script>
+
+<script>
+
+  Base.addFeature({
+
+    // TODO(sjmiles): ad-hoc signal for `ShadowDOM-lite-enhanced` nodes 
+    isHost: true,
+
+    register: function(prototype) {
+      var t = prototype._template;
+      // TODO(sorvell): is qsa is wrong here due to distribution?
+      // TODO(sjmiles): No element should ever actually stamp a <content> node 
+      // into it's composed tree, so I believe this is actually correct.
+      // However, I wonder if it's more efficient to capture during annotation 
+      // parsing, since the parse step does a tree walk in any case, and the
+      // tree is smaller before element expansion.
+      prototype._useContent = Boolean(t && t.content.querySelector('content'));
+    },
+    
+    poolContent: function() {
+      // pool the light dom
+      var pool = document.createDocumentFragment();
+      while (this.firstChild) {
+        pool.appendChild(this.firstChild);
+      }
+      this.contentPool = pool;
+      // capture lightChildren to help reify dom scoping
+      this.lightChildren = 
+        Array.prototype.slice.call(this.contentPool.childNodes, 0);
+    },
+    
+    distributeContent: function() {
+      var content, pool = this.contentPool;
+      // replace <content> with nodes teleported from pool
+      while (content = this.querySelector('content')) {
+        var select = content.getAttribute('select');
+        var frag = pool;
+        if (select) {
+          frag = document.createDocumentFragment();
+          // TODO(sjmiles): diverges from ShadowDOM spec behavior: ShadowDOM 
+          // only selects top level nodes from pool. Iterate children and match 
+          // manually instead.
+          var nodes = pool.querySelectorAll(select);
+          for (var i=0, l=nodes.length; i<l; i++) {
+            frag.appendChild(nodes[i]);
+          }
+        }
+        // content self-destructs
+        content.parentNode.replaceChild(frag, content);
+      }
+    }
+          
+  });
+    
+</script>
+
+<script>
+
+/**
+ * Scans a template (once per prototype) to produce an annotation map that 
+ * stores expression metadata and information to associate the metadata with 
+ * nodes in an instance.
+ *
+ * Supported expressions include:
+ * 
+ * Double-mustache annotations in text content. Must be the only content
+ * in the tag, compound expressions are not supported.
+ * 
+ *     <[tag]>{{propertyName}}<[tag]> 
+ * 
+ * Double-mustache annotations in an attribute.
+ * 
+ *     <[tag] someAttribute="{{propertyName}}"><[tag]> 
+ * 
+ * `on-` style event declarations.
+ * 
+ *     <[tag] on-<event-name>="{{methodName}}"><[tag]> 
+ * 
+ * Note that the `annotations` feature does not actually implement the behaviors
+ * associated with these expressions, it only captures the data. Other
+ * `annotations-*` features contain the actual implementations. 
+ * 
+ * @class feature: annotations 
+ */
+
+// TODO(sjmiles): this code was ported from an earlier mutation and needs
+// a cleanup to cleave closer to neoprene MO
+
+/* 
+
+Scans a template to produce an annotation map that stores expression metadata 
+and information that associates the metadata to nodes in a template instance.
+
+Supported annotations are:
+
+  * id attributes
+  * binding annotations in text nodes
+    * double-mustache expressions: {{expression}}
+    * double-bracket expressions: [[expression]]
+  * binding annotations in attributes
+    * attribute-bind expressions: name="{{expression}} || [[expression]]"
+    * property-bind expressions: name*="{{expression}} || [[expression]]"
+    * property-bind expressions: name:="expression"
+  * event annotations
+    * event delegation directives: on-<eventName>="expression"
+
+Generated data-structure:
+
+  [
+    {
+      id: '<id>',
+      events: [
+        {
+          mode: ['auto'|''], 
+          name: '<name>'
+          value: '<expression>'
+        }, ...
+      ],
+      bindings: [
+        {
+          kind: ['text'|'attribute'|'property'],
+          mode: ['auto'|''], 
+          name: '<name>'
+          value: '<expression>'
+        }, ...
+      ],
+      // TODO(sjmiles): confusingly, this is annotation-parent, not node-parent
+      parent: <reference to parent annotation>,
+      index: <integer index in parent's childNodes collection>
+    },
+    ...  
+  ]
+
+TODO(sjmiles): this module should produce either syntactic metadata 
+(e.g. double-mustache, double-bracket, star-attr), or semantic metadata
+(e.g. manual-bind, auto-bind, property-bind). Right now it's half and half.
+   
+*/
+
+  Base.addFeature({
+
+    // instance-time
+
+    findAnnotatedNode: function(root, annote) {
+      if (!annote.parent) {
+        return root;
+      }
+      var parent = this.findAnnotatedNode(root, annote.parent);
+      // enforce locality.
+      var nodes = (parent === this) ? parent.childNodes : 
+        (parent.lightChildren || parent.childNodes);
+      return nodes[annote.index];
+    },
+
+    // registration-time
+
+    register: function(prototype) {
+      if (prototype._template) {
+        prototype.parseAnnotations(prototype._template)
+      }
+    },
+
+    parseAnnotations: function(template) {
+      // TODO(sjmiles): it's not a map, per se
+      var map = [];
+      this._parseNodeAnnotations(template.content, map);
+      if (map.length) {
+        template.map = map;
+      }
+      return template.map;
+    },
+
+    _parseNodeAnnotations: function(node, map) {
+      return node.nodeType === Node.TEXT_NODE ? 
+        this._parseTextNodeAnnotation(node, map) : 
+          this._parseElementAnnotations(node, map);
+    },
+
+    _parseTextNodeAnnotation: function(node, map) {
+      var v = node.textContent, escape = v.slice(0, 2);
+      if (escape === '{{' || escape === '[[') {
+        var annotation = {
+          bindings: [{
+            kind: 'text',
+            mode: escape === '{{' ? 'auto' : '',
+            value: v.slice(2, -2)
+          }]
+        };
+        node.textContent = '';
+        map.push(annotation);
+        return annotation;
+      }
+    },
+
+    _parseElementAnnotations: function(node, map) {
+      var annote = {
+        bindings: [],
+        events: []
+      };
+      this._parseChildNodesAnnotations(node, annote, map);
+      if (node.attributes) {
+        this._parseNodeAttributeAnnotations(node, annote, map);
+      }
+      if (annote.bindings.length || annote.events.length || annote.id) {
+        map.push(annote);
+      }
+      return annote;
+    },
+
+    _parseChildNodesAnnotations: function(root, annotation, map) {
+      if (root.firstChild) {
+        for (var i=0, node=root.firstChild; node; node=node.nextSibling, i++) {
+          var childAnnotation = this._parseNodeAnnotations(node, map);
+          if (childAnnotation) {
+            childAnnotation.parent = annotation;
+            childAnnotation.index = i;
+          }
+        }
+      }
+    },
+
+    _parseNodeAttributeAnnotations: function(node, annotation) {
+      for (var i=0, a; (a=node.attributes[i]); i++) {
+        var n = a.name, v = a.value;
+        // id
+        if (n === 'id') {
+          annotation.id = v;
+        } 
+        // on-* (event)
+        else if (n.slice(0, 3) === 'on-') {
+          i--;
+          node.removeAttribute(n);
+          annotation.events.push({
+            name: n.slice(3),
+            value: v 
+          });
+        } 
+        // other attribute
+        else {
+          var b = this._parseNodeAttributeAnnotation(node, n, v);
+          if (b) {
+            i--;
+            annotation.bindings.push(b);
+          }
+        }
+      }
+    },
+
+    _parseNodeAttributeAnnotation: function(node, n, v) {
+      var escape = v.slice(0, 2), lastChar = n[n.length-1];
+      var kind = 'attribute', mode = '';
+      if (lastChar === '*' || lastChar === ':') {
+          n = n.slice(0, -1);
+          kind = 'property';
+          mode = 'auto';
+      }
+      if (escape === '{{') {
+        mode = 'auto';
+        v = v.slice(2, -2);
+      }
+      if (escape === '[[') {
+        mode = 'manual';
+        v = v.slice(2, -2);
+      }
+      if (mode) {
+        if (n === 'style') {
+          kind = 'style';
+        }
+        node.removeAttribute(n);
+        return {
+          kind: kind,
+          mode: mode,
+          name: n,
+          value: v
+        };
+      }
+    }
+
+  });
+
+</script>
+<script>
+
+  // depends on `annotations` feature
+
+  Base.addFeature({
+
+    $$: function(slctr) {
+      return this.root.querySelector(slctr);
+    },
+
+    // construct $ map (id based)
+    _marshalNodeReferences: function() {
+      this.$ = {};
+      var map = this._template && this._template.map;
+      if (map) {
+        map.forEach(function(annotation) {
+          var id = annotation.id;
+          if (id) {
+            this.$[id] = this.findAnnotatedNode(this.root, annotation);
+          }
+        }, this);
+      }
+    },
+
+    // concretize `_nodes` map (annotation based)
+    _marshalAnnotatedNodes: function() {
+      if (this._nodes) {
+        this._nodes = this._nodes.map(function(a) {
+          return this.findAnnotatedNode(this.root, a);
+        }, this);
+      }
+    }
+
+  });
+
+</script>
+<script>
+  
+  Base.addFeature({
+
+    listeners: {},
+
+    init: function() {
+    },
+
+    // TODO(sjmiles): support for '.' notation requires 'nodes' feature
+    listenListeners: function() {
+      for (var key in this.listeners) {
+        var node = this, name = key;
+        if (name.indexOf('.') >= 0) {
+          name = name.split('.');
+          node = this.$[name[0]];
+          name = name[1];
+        }
+        this.listen(node, name, this.listeners[key]);
+      }
+    },
+
+    listen: function(node, eventName, methodName) {
+      node.addEventListener(eventName, function(e) {
+        this[methodName](e, e.detail);
+      }.bind(this));
+    },
+
+    // TODO(sjmiles): use a dictionary for options after `detail`
+    fire: function(type, detail, onNode, bubbles, cancelable) {
+      var node = onNode || this;
+      var detail = (detail === null || detail === undefined) ? {} : detail;
+      var event = new CustomEvent(type, {
+        bubbles: bubbles !== undefined ? bubbles : true,
+        cancelable: cancelable !== undefined ? cancelable : true,
+        detail: detail
+      });
+      node.dispatchEvent(event);
+      return event;
+    }
+
+  });
+  
+</script>
+
+<script>
+
+  Base.addFeature({
+
+    keyPresses: {},
+
+    listenKeyPresses: function() {
+      // for..in here to gate empty keyPresses object (iterates once or never)
+      for (var n in this.keyPresses) {
+        // only get here if there is something in keyPresses
+        this.addEventListener('keypress', this.keyPressesFeatureHandler);
+        // map string keys to numeric codes
+        for (n in this.keyPresses) {
+          if (typeof n === 'string') {
+            this.keyPresses[Event.prototype.keys[n]] = this.keyPresses[n];
+          }
+        }
+        break;
+      }
+    },
+
+    keyPressesFeatureHandler: function(e) {
+      var method = this.keyPresses[e.keyCode];
+      if (method && this[method]) {
+        return this[method](e.keyCode, e);
+      }
+    }
+
+  });
+  
+</script>
+
+
+
+<script>
+
+  /*
+   * Parses the annotations map created by `annotations` features to support
+   * declarative events.
+   * 
+   * Depends on `annotations` and `events` features.
+   * 
+   */
+  Base.addFeature({
+
+    // instance-time
+    
+    _setupAnnotatedListeners: function() {
+      var map = this._template.map;
+      if (map) {
+        map.forEach(function(annotation) {
+          var events = annotation.events;
+          if (events && events.length) {
+            var node = this.findAnnotatedNode(this.root, annotation);
+            events.forEach(function(e) {
+              //console.log('[%s] listening for [%s] on [%s]', e.value, e.name, node.localName);
+              this.listen(node, e.name, e.value);
+            }, this)
+          }
+        }, this);
+      }
+    }
+
+  });
+
+</script>
+
+<script>
+
+  Base.addFeature({
+
+    async: function(method) {
+      var handled = false;
+      var handle = function() {
+        if (!handled) {
+          handled = true;
+          method.call(this);
+        }
+      }.bind(this);
+      // minimize latency by racing timeout against rAF
+      setTimeout(handle);
+      requestAnimationFrame(handle);
+    },
+
+    toggleAttribute: function(name, value) {
+      this[value ? 'setAttribute' : 'removeAttribute'](name, '');
+    },
+
+    attributeFollows: function(name, neo, old) {
+      if (old) {
+        old.removeAttribute(name);
+      } 
+      if (neo) {
+        neo.setAttribute(name, '');
+      }
+    },
+
+    queryHost: function(node) {
+      return this.host || this._queryHost(this);
+    },
+
+    _queryHost: function(node) {
+      return node && 
+        (node.host || (node.host = this._queryHost(node.parentNode)));
+    }
+
+  });
+
+</script>
+<style>
+/*******************************
+          Flex Layout
+*******************************/
+
+[layout][horizontal], [layout][vertical] {
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: flex;
+}
+
+[layout][horizontal][inline], [layout][vertical][inline] {
+  display: -ms-inline-flexbox;
+  display: -webkit-inline-flex;
+  display: inline-flex;
+}
+
+[layout][horizontal] {
+  -ms-flex-direction: row;
+  -webkit-flex-direction: row;
+  flex-direction: row;
+}
+
+[layout][horizontal][reverse] {
+  -ms-flex-direction: row-reverse;
+  -webkit-flex-direction: row-reverse;
+  flex-direction: row-reverse;
+}
+
+[layout][vertical] {
+  -ms-flex-direction: column;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+}
+
+[layout][vertical][reverse] {
+  -ms-flex-direction: column-reverse;
+  -webkit-flex-direction: column-reverse;
+  flex-direction: column-reverse;
+}
+
+[layout][wrap] {
+  -ms-flex-wrap: wrap;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+}
+
+[layout][wrap-reverse] {
+  -ms-flex-wrap: wrap-reverse;
+  -webkit-flex-wrap: wrap-reverse;
+  flex-wrap: wrap-reverse;
+}
+
+[flex] {
+  -ms-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+}
+
+[flex][auto] {
+  -ms-flex: 1 1 auto;
+  -webkit-flex: 1 1 auto;
+  flex: 1 1 auto;
+}
+
+[flex][none] {
+  -ms-flex: none;
+  -webkit-flex: none;
+  flex: none;
+}
+
+[flex][one] {
+  -ms-flex: 1;
+  -webkit-flex: 1;
+  flex: 1;
+}
+
+[flex][two] {
+  -ms-flex: 2;
+  -webkit-flex: 2;
+  flex: 2;
+}
+
+[flex][three] {
+  -ms-flex: 3;
+  -webkit-flex: 3;
+  flex: 3;
+}
+
+[flex][four] {
+  -ms-flex: 4;
+  -webkit-flex: 4;
+  flex: 4;
+}
+
+[flex][five] {
+  -ms-flex: 5;
+  -webkit-flex: 5;
+  flex: 5;
+}
+
+[flex][six] {
+  -ms-flex: 6;
+  -webkit-flex: 6;
+  flex: 6;
+}
+
+[flex][seven] {
+  -ms-flex: 7;
+  -webkit-flex: 7;
+  flex: 7;
+}
+
+[flex][eight] {
+  -ms-flex: 8;
+  -webkit-flex: 8;
+  flex: 8;
+}
+
+[flex][nine] {
+  -ms-flex: 9;
+  -webkit-flex: 9;
+  flex: 9;
+}
+
+[flex][ten] {
+  -ms-flex: 10;
+  -webkit-flex: 10;
+  flex: 10;
+}
+
+[flex][eleven] {
+  -ms-flex: 11;
+  -webkit-flex: 11;
+  flex: 11;
+}
+
+[flex][twelve] {
+  -ms-flex: 12;
+  -webkit-flex: 12;
+  flex: 12;
+}
+
+/* alignment in cross axis */
+
+[layout][start] {
+  -ms-flex-align: start;
+  -webkit-align-items: flex-start;
+  align-items: flex-start;
+}
+
+[layout][center], [layout][center-center] {
+  -ms-flex-align: center;
+  -webkit-align-items: center;
+  align-items: center;
+}
+
+[layout][end] {
+  -ms-flex-align: end;
+  -webkit-align-items: flex-end;
+  align-items: flex-end;
+}
+
+/* alignment in main axis */
+
+[layout][start-justified] {
+  -ms-flex-pack: start;
+  -webkit-justify-content: flex-start;
+  justify-content: flex-start;
+}
+
+[layout][center-justified], [layout][center-center] {
+  -ms-flex-pack: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+
+[layout][end-justified] {
+  -ms-flex-pack: end;
+  -webkit-justify-content: flex-end;
+  justify-content: flex-end;
+}
+
+[layout][around-justified] {
+  -ms-flex-pack: around;
+  -webkit-justify-content: space-around;
+  justify-content: space-around;
+}
+
+[layout][justified] {
+  -ms-flex-pack: justify;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+}
+
+/* self alignment */
+
+[self-start] {
+  -ms-align-self: flex-start;
+  -webkit-align-self: flex-start;
+  align-self: flex-start;
+}
+
+[self-center] {
+  -ms-align-self: center;
+  -webkit-align-self: center;
+  align-self: center;
+}
+
+[self-end] {
+  -ms-align-self: flex-end;
+  -webkit-align-self: flex-end;
+  align-self: flex-end;
+}
+
+[self-stretch] {
+  -ms-align-self: stretch;
+  -webkit-align-self: stretch;
+  align-self: stretch;
+}
+
+/*******************************
+          Other Layout
+*******************************/
+
+[block] {
+  display: block;
+}
+
+/* ie support for hidden */
+[hidden] {
+  display: none !important;
+}
+
+[invisible] {
+  visibility: hidden !important;
+}
+
+[relative] {
+  position: relative;
+}
+
+[fit] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+body[fullbleed] {
+  margin: 0;
+  height: 100vh;
+}
+
+[scroll] {
+  overflow: auto;
+}
+
+/*******************************
+            Other
+*******************************/
+
+[segment], segment {
+  display: block;
+  position: relative;
+  -webkit-box-sizing: border-box;
+  -ms-box-sizing: border-box;
+  box-sizing: border-box;
+  margin: 1em 0.5em;
+  padding: 1em;
+  background-color: white;
+  -webkit-box-shadow: 0px 0px 0px 1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0px 0px 0px 1px rgba(0, 0, 0, 0.1);
+  border-radius: 5px 5px 5px 5px;
+}
+
+</style>
+
+<script>
+
+  // TODO(sjmiles): hack
+  Base.originalInitFeatures = Base.initFeatures;
+  
+  Base.addFeature({
+
+    initFeatures: function() {
+      // TODO(sjmiles): hack to make sure this feature goes last
+      this.originalInitFeatures(this);
+      this.features();
+    },
+
+    features: function() {
+      this.defaultFeatures();
+    },
+
+    defaultFeatures: function() {
+      if (this._useContent) {
+        this.poolContent();
+      }
+      if (this._template) {
+        this.stampTemplate();
+        this._marshalNodeReferences();
+        this._marshalAnnotatedNodes();
+        this._setupAnnotatedListeners();
+        if (this._setupBindListeners) {
+          this._setupBindListeners();
+        }
+      }
+      this.listenListeners();
+      this.listenKeyPresses();
+      if (this._useContent) {
+        this.distributeContent();
+      }
+      this.takeAttributes();
+    }
+
+  });
+
+  Polymer.noFeatures = function() {
+  };
+
+  Polymer.defaultFeatures = Base.defaultFeatures;
+
+</script>
+
+
+<script>
+
+  /**
+   * Needs new name.
+   * 
+   * Support for the declarative property sugaring via a `bind` object
+   * on the prototype.
+   * 
+   * Building applications by hand, a pattern emerges: operations such as
+   * data propagation need to trigger effects. For example, changes to data 
+   * need to be reflected into DOM, or trigger additional value computations.
+   * 
+   * This module provides an API for registering effects against properties.
+   * The effect data is consumed by the `bind-effects` module which compiles 
+   * the effects into efficient JavaScript that is triggered, e.g., when a 
+   * property is set to a new value.
+   * 
+   * Property effects can be created imperatively, by template-annotations 
+   * (e.g. mustache notation), or by declaration in the `bind` object.  
+   *
+   * The bind object syntax is as follows: 
+   *
+   * bind {
+   *   // if `method` is the name of a method on the current object, the
+   *   // method is invoked with the property changes. The method is provided
+   *   // arguments as follows: `method(value, oldValue)`
+   *   property: 'method'
+   * 
+   *   // if the value is not the name of a method, it's assumed to be a
+   *   // id of an element in the `$` hash. Remember that when using a 
+   *   // template, `$` maps element ids to elements. By default, changes in 
+   *   // the named property are sent to the target element's `textContent`.
+   *   // In this case, when `property2` changes, it's value is set to
+   *   // `this.$.myId.textContent`.
+   *   property2: 'myId'
+   * 
+   *   // A target property other than `textContent` can be specified using
+   *   // dot notation. In this case, when `property3` changes, it's value is 
+   *   // set to `this.$.myId.value`.
+   *   property3: 'myId.value'
+   * 
+   *   // To have a property modification trigger multiple side effects, use
+   *   // an array.
+   *   property4: [
+   *    'property4Changed',
+   *    'myId.data',
+   *    'otherId.value'
+   *   ]
+   * }
+   * 
+   * @class feature: bind
+   */
+  Base.addFeature({
+
+    // per prototype
+
+    // TODO(sjmiles): initialization of `_propertyEffects` and the
+    // `addPropertyEffect` itself are really the domain of bind-effects
+    // but these things needs to happen before bind-effects itself initializes.
+    // We need to factor bind-effects into before and after features instead
+    // and let this feature be for dealing with `bind` object.
+    
+    register: function(prototype) {
+      prototype._addPropertyBindEffects();
+    },
+
+    // TODO(sjmiles): really ad hoc self-modifying code
+    // to resolve initialization ordering around optional
+    // module 
+    addPropertyEffect: function(property, kind, effect) {
+      // prepare storage on first invocation
+      this._propertyEffects = {};
+      // add the effect
+      this._addPropertyEffect(property, kind, effect);
+      // subsequent invocations skip preparation step implementation
+      this.addPropertyEffect = this._addPropertyEffect; 
+    },
+
+    _addPropertyEffect: function(property, kind, effect) {
+      var fx = this._propertyEffects[property];
+      if (!fx) {
+        fx = this._propertyEffects[property] = [];
+      }
+      fx.push({
+        kind: kind,
+        effect: effect
+      });
+    },
+
+    _addPropertyBindEffects: function() {
+      for (var n in this.bind) {
+        var bind = this.bind[n];
+        if (typeof bind === 'object') {
+          // multiplexed definition
+          for (var nn in bind) {
+            this._addPropertyBindEffect(n, bind[nn]);
+          }
+        } else {
+          // single definition
+          this._addPropertyBindEffect(n, bind);
+        }
+      }
+    },
+
+    _addPropertyBindEffect: function(property, bindEffect) {
+      var kind = 'bind';
+      if (typeof this[bindEffect] === 'function') {
+        kind = 'method';
+      }
+      this.addPropertyEffect(property, kind, bindEffect);
+    }
+
+  });
+
+</script>
+
+
+<script>
+
+  /*
+   * Parses the annotations map created by `annotations` features to perform
+   * declarative desugaring.
+   * 
+   * Depends on `annotations` feature and `bind` feature.
+   * 
+   * Two tasks are supported:
+   * 
+   * - nodes with 'id' are described in a virtual annotation map at 
+   *   registration time. This map is then concretized per instance.
+   * 
+   * - Simple mustache expressions consisting of a single property name
+   *   in a `textContent` context are bound using `bind` features
+   *   `bindMethod`. In this mode, the bound method is constructed at
+   *   registration time, so marshaling is done done via the concretized 
+   *   `_nodes` at every access.
+   *    
+   *   TODO(sjmiles): ph3ar general confusion between registration and 
+   *   instance time tasks. Is there a cleaner way to disambiguate? 
+   */
+  Base.addFeature({
+
+    // registration-time
+
+    register: function(prototype) {
+      if (prototype._template && prototype._template.map) {
+        this._preprocessBindAnnotations(prototype, prototype._template.map);
+      }
+    },
+
+    // construct binding meta-data at *registration* time
+    _preprocessBindAnnotations: function(prototype, map) {
+      // create a virtual annotation map, must be concretized at instance time 
+      prototype._nodes = [];
+      // process annotations that have been parsed from template
+      map.forEach(function(annotation) {
+        // where to find the node in the concretized map 
+        var index = prototype._nodes.push(annotation) - 1;
+        // TODO(sjmiles): we need to support multi-bind, right now you only get 
+        // one (not including kind === `id`)
+        annotation.bindings.forEach(function(binding) {
+          prototype._bindAnnotationBinding(binding, index);
+        });
+      });
+    },
+
+    _bindAnnotationBinding: function(binding, index) {
+      // add to the list of property side-effects
+      binding.index = index;
+      this.addPropertyEffect(binding.value, 'annotation', binding);
+    }
+
+  });
+
+</script>
+
+<script>
+  
+  Base.addFeature({
+
+    /* computed property feature */
+
+    computed: {
+    },
+
+    register: function(prototype) {
+      prototype.defineComputedProperties(prototype.computed);
+    },
+
+    defineComputedProperties: function(computed) {
+      for (var n in computed) {
+        this.defineComputedProperty(n, computed[n]);
+      }
+    },
+
+    defineComputedProperty: function(name, expression) {
+      var index = expression.indexOf('(');
+      var method = expression.slice(0, index);
+      var args = expression.slice(index + 1, -1).replace(/ /g, '').split(',');
+      console.log('%c on [%s] compute [%s] via [%s]', 'color: green', args[0], name, method);
+      this.addPropertyEffect(args[0], 'compute', {
+        property: name,
+        method: method
+      });
+      /*
+      this.compoundWatch(args, function() {
+        Polymer.log.watches && console.log('[compute] [%s]', name, arguments);
+        this[name] = method.apply(this, arguments);
+      });
+      */
+    }
+
+  });
+
+</script>
+<script>
+
+  Base.addFeature({
+
+    // per instance
+    
+    init: function() {
+      this._data = Object.create(null);
+    },
+
+    _setupBindListeners: function() {
+      var bl = this._bindListeners;
+      for (var n in bl) {
+        bl[n].targets.forEach(function(target) {
+          this._setupBindListener(n, target);
+        }, this);
+      }
+    },
+
+    _setupBindListener: function(property, target) {
+      //console.log('[bind]: [%s][%s] listening for [%s][%s-changed]', this.localName, property, target.id || target.index, target.property);
+      var host = this, property;
+      var node = target.id ? this.$[target.id] : this._nodes[target.index];
+      node.addEventListener(target.property + '-changed', function(e) {
+        //console.log('[bind]:[%s] heard [%s-changed] this.[%s] = [%s]', host.localName, source, property, e.detail);
+        host[property] = e.detail;
+      });
+    },
+
+    _notifyChange: function(property) {
+      this.fire(property + '-changed', this[property], null, false);
+    },
+
+    _setData: function(property, value) {
+      var old = this._data[property];
+      if (old !== value) {
+        this._data[property] = value;
+      }
+      return old;
+    },
+
+    // per prototype
+    
+    register: function(prototype) {
+      prototype._bindListeners = {};
+      prototype._createBindings();
+    },
+
+    _createBindings: function() {
+      var fx$ = this._propertyEffects;
+      if (fx$) {
+        //console.group(this.name);
+        for (var n in fx$) {
+          //console.group(n);
+          var fx = fx$[n];
+          fx.sort(this._sortPropertyEffects);
+          //console.log(fx);
+          var compiledEffects = fx.map(function(x) {
+            return this._buildEffect(n, x);
+          }, this);
+          this._bindPropertyEffects(n, compiledEffects);
+          //console.log(fxt.join('\n'));
+          //console.groupEnd();
+        }
+        //console.groupEnd();
+      }
+    },
+
+    _sortPropertyEffects: function(a, b) {
+      switch (a.kind) {
+        case 'compute':
+          return -1;
+        case 'notify':
+          return 1;
+         default:
+          return 0;
+      }
+    },
+
+    _buildEffect: function(property, fx) {
+      return this['_' + fx.kind + 'EffectBuilder'](property, fx.effect);
+    },
+
+    _methodEffectBuilder: function(source, effect) {
+      // TODO(sjmiles): validation system requires a blessed
+      // validator effect which needs to be processed first.
+      /*
+      if (typeof this[effect] === 'function') {
+        return [
+          'var validated = this.' + effect + '(value, old)',
+          'if (validated !== undefined) {',
+          '  // recurse',
+          '  this[property] = validated;',
+          '  return;',
+          '}'
+        ].join('\n');
+      }
+      */
+      //
+      return 'this.' + effect + '(this._data.' + source + ', old);'
+    },
+
+    _bindEffectBuilder: function(source, effect) {
+      var paths = effect.split('.');
+      var id = paths.shift();
+      var property = paths.join('.');
+      if (property) {
+        this._addBindListener(source, id, property);
+      } else {
+        property = 'textContent';
+      }
+      return 'this.$.' + id + '.' + property + ' = ' 
+        + 'this._data.' + source + ';'
+    },
+
+    _bindPropertyEffects: function(property, effects) {
+      var defun = {
+        get: function() {
+          return this._data[property];
+        }
+      }
+      if (effects.length) {
+        // combine effects
+        effects = effects.join('\n\t\t');
+        // construct effector
+        var effector = '_' + property + 'Effector';
+        this[effector] = new Function('old', effects);
+        // construct setter body
+        var body  = '\tvar old = this._setData(\'' + property + '\', value);\n'
+          + '\tif (value !== old) {\n'
+            + '\t\tthis.' + effector + '(old);\n' 
+          + '\t}';
+        var setter = new Function('value', body);
+        // ReadOnly properties have a private setter only
+        if (this.isReadOnlyProperty(property)) {
+          this['_set_' + property] = setter;
+        }
+        // other properties have a proper setter 
+        else {
+          defun.set = setter;
+        }
+      }
+      Object.defineProperty(this, property, defun);
+      //var prop = Object.getOwnPropertyDescriptor(this, property);
+      //console.log(prop.set ? prop.set.toString() : '(read-only)');
+    },
+
+    _notifyEffectBuilder: function(source) {
+      return 'this._notifyChange(\'' + source + '\')';
+    },
+
+    _computeEffectBuilder: function(source, effect) {
+      return 'this.' + effect.property 
+        + ' = this.' + effect.method + '(this._data.' + source + ');';
+    },
+
+    _annotationEffectBuilder: function(source, binding) {
+      var target = binding.name || 'textContent';
+      if (binding.kind !== 'text' && binding.kind !== 'attribute') {
+        console.warn(binding.kind);
+        return;
+      }
+      if (target !== 'textContent') {
+        this._addAnnotatedListener(source, binding.index, target);
+      }
+      return this._bindAnnotationProperty(source, target, binding.index);
+    },
+
+    _bindAnnotationProperty: function(source, target, index) {
+      return 'this._nodes[' + index + '].' + target 
+          + ' = this._data.' + source + ';';
+    },
+
+    _addBindListener: function(source, id, property) {
+      var bl = this._requireBindListeners(source);
+      bl.targets.push({
+        id: id,
+        property: property
+      });
+    },
+
+    _addAnnotatedListener: function(source, index, property) {
+      var bl = this._requireBindListeners(source);
+      bl.targets.push({
+        index: index,
+        property: property
+      });
+    },
+
+    _requireBindListeners: function(source) {
+      var bl = this._bindListeners[source];
+      if (!bl) {
+        bl = this._bindListeners[source] = {targets: []};
+      }
+      return bl;
+    }
+
+});
+
+</script>
+<style>
+  x-thing .message {
+    box-sizing: border-box;
+    height: 80px;
+    padding: 4px;
+    padding-left: 77px;
+    line-height: 167%;
+    cursor: default;
+    background-color: white;
+    position: relative;
+    color: black;
+    background-repeat: no-repeat;
+    background-position: 10px 10px;
+    background-size: 60px;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  x-thing .from {
+    display: inline;
+    font-weight: bold;
+  }
+  
+  x-thing .timestamp {
+    margin-left: 10px;
+    font-size: 12px;
+    opacity: 0.8;
+  }
+  
+</style>
+
+
+
+
+<script>
+
+  Polymer({
+
+    name: 'x-repeater',
+
+    published: {
+      kind: String
+    },
+
+    bind: {
+      items: 'itemsChanged'
+    },
+
+    created: function() {
+      this.style.display = 'block';
+    },
+
+    itemsChanged: function(items) {
+      var root = this.root, kind = this.kind;
+      root.textContent = '';
+      if (items && kind) {
+        for (var i=0, row, item; item=items[i]; i++) {
+          row = document.createElement(kind);
+          row.item = item;
+          root.appendChild(row);
+        }
+      }
+    }
+
+  });
+
+</script>
+
+<script>
+
+function makeItem(suffix) {
+	var o = {};
+	var s = 'a'.charCodeAt(0);
+	for (var i=s, l; i < s+26; i++) {
+		l = String.fromCharCode(i);
+		o[l] = l + ': ' + suffix;
+	}
+	return o;
+}
+
+function generateData(count) {
+  var data = [];
+  for (var i=0; i<count; i++) {
+    data.push(makeItem(i));
+  }
+  return data;
+}
+
+var data = generateData(400);
+</script>
+</head><body><div hidden="">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<template id="x-thing">
+  
+
+  <div class="message">
+    <span id="from" class="from">{{a}}</span>
+    <span id="timestamp" class="timestamp">{{b}}</span>
+    <div id="subject" class="subject">{{c}}</div>
+  </div>
+
+</template>
+<script>
+  Polymer({
+
+    name: 'x-thing',
+
+    // published: {
+    //   a: String,
+    //   b: String,
+    //   c: String
+    // },
+
+    bind: {
+      a: 'aChanged',
+      b: 'bChanged',
+      c: 'cChanged'
+    },
+
+    aChanged: function() {},
+
+    bChanged: function() {},
+    
+    cChanged: function() {}
+
+  });
+</script>
+
+<template id="x-item">
+  <x-thing id="t1"></x-thing>
+  <x-thing id="t2"></x-thing>
+  <x-thing id="t3"></x-thing>
+  <x-thing id="t4"></x-thing>
+  <x-thing id="t5"></x-thing>
+  <x-thing id="t6"></x-thing>
+</template>
+
+<script>
+
+  Polymer({
+
+    name: 'x-item',
+
+    published: {
+      item: Object
+    },
+
+    bind: {
+      a: "t1.a",
+      b: "t1.b",
+      c: "t1.c",
+      d: "t2.a",
+      e: "t2.b",
+      f: "t2.c",
+      g: "t3.a",
+      h: "t3.b",
+      i: "t3.c",
+      j: "t4.a",
+      k: "t4.b",
+      l: "t4.c",
+      m: "t5.a",
+      n: "t5.b",
+      o: "t5.c",
+      p: "t6.a",
+      q: "t6.b",
+      r: "t6.c",
+      item: 'itemChanged'
+    },
+
+    hostAttributes: 'horizontal layout',
+
+    itemChanged: function(item) {
+      for (var i in item) {
+        this[i] = item[i];
+      }
+    }
+    
+  });
+
+</script>
+
+</div></body></html>

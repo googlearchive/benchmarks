@@ -1,0 +1,22 @@
+<script>
+
+function makeItem(suffix) {
+	var o = {};
+	var s = 'a'.charCodeAt(0);
+	for (var i=s, l; i < s+26; i++) {
+		l = String.fromCharCode(i);
+		o[l] = l + ': ' + suffix;
+	}
+	return o;
+}
+
+function generateData(count) {
+  var data = [];
+  for (var i=0; i<count; i++) {
+    data.push(makeItem(i));
+  }
+  return data;
+}
+
+var data = generateData(250);
+</script>

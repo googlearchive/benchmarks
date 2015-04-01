@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+
+  <meta charset="utf-8">
+  <title>app</title>
+
+  <script>
+    // remove observation to force data polyfill
+    Object.observe = null;
+  </script>
+
+  <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
+  <script src="components/platform/platform.js"></script>
+  <link rel="import" href="elements.html">
+  <link rel="import" href="../assets/data.html">
+  <style>
+    [scroll] {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  </style>
+  <script src="../../../perf-lib/perf.js"></script>
+  <script>console.perf()</script>
+
+</head>
+<body fullbleed vertical layout>
+  
+  <!-- <div flex scroll>
+    <template id="list" repeat="{{}}">
+      <x-item item="{{}}"></x-item>
+    </template>
+  </div>
+  
+  <script>
+    addEventListener('polymer-ready', function() {
+      var list = document.querySelector('#list');
+      list.model = data;
+      console.perfEnd();
+    });
+  </script> -->
+
+  <template>
+    <div flex scroll>
+      <template id="list" repeat="{{}}">
+        <x-item item="{{}}"></x-item>
+      </template>
+    </div>
+  </template>
+
+  <script>
+    addEventListener('polymer-ready', function() {
+      var template = document.querySelector('template');
+      console.perf();
+      document.body.appendChild(stampTemplate(template));
+      var list = document.querySelector('#list');
+      list.model = data;
+      console.perfEnd();
+    });
+  </script>
+  
+</body>
+</html>

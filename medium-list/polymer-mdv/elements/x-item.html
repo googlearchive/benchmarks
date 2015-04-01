@@ -1,0 +1,30 @@
+<polymer-element name="x-item">
+<template>
+  <x-thing a="{{a}}" b="{{b}}" c="{{c}}"></x-thing>
+  <x-thing a="{{d}}" b="{{e}}" c="{{f}}"></x-thing>
+  <x-thing a="{{g}}" b="{{h}}" c="{{i}}"></x-thing>
+  <x-thing a="{{j}}" b="{{k}}" c="{{l}}"></x-thing>
+  <x-thing a="{{m}}" b="{{n}}" c="{{o}}"></x-thing>
+  <x-thing a="{{p}}" b="{{q}}" c="{{r}}"></x-thing>
+</template>
+<script>
+(function() {
+  var template = document._currentScript.ownerDocument.querySelector('template');
+	Polymer({
+		createdCallback: function() {
+			this.setAttribute('layout', '');
+			this.setAttribute('horizontal', '');
+      this.item = {};
+    },
+    bindFinished: function() {
+      this.item = this.templateInstance.model;
+      var root = this.createShadowRoot();
+      var dom = template.createInstance(this.item);
+      root.appendChild(dom);
+    },
+    makeElementReady: function(){},
+    attachedCallback: function(){},
+	});
+})();
+</script>
+</polymer-element>

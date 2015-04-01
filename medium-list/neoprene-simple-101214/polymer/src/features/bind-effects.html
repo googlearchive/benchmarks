@@ -1,0 +1,200 @@
+<script>
+
+  Base.addFeature({
+
+    // per instance
+    
+    init: function() {
+      this._data = Object.create(null);
+    },
+
+    _setupBindListeners: function() {
+      var bl = this._bindListeners;
+      for (var n in bl) {
+        bl[n].targets.forEach(function(target) {
+          this._setupBindListener(n, target);
+        }, this);
+      }
+    },
+
+    _setupBindListener: function(property, target) {
+      //console.log('[bind]: [%s][%s] listening for [%s][%s-changed]', this.localName, property, target.id || target.index, target.property);
+      var host = this, property;
+      var node = target.id ? this.$[target.id] : this._nodes[target.index];
+      node.addEventListener(target.property + '-changed', function(e) {
+        //console.log('[bind]:[%s] heard [%s-changed] this.[%s] = [%s]', host.localName, source, property, e.detail);
+        host[property] = e.detail;
+      });
+    },
+
+    _notifyChange: function(property) {
+      this.fire(property + '-changed', this[property], null, false);
+    },
+
+    _setData: function(property, value) {
+      var old = this._data[property];
+      if (old !== value) {
+        this._data[property] = value;
+      }
+      return old;
+    },
+
+    // per prototype
+    
+    register: function(prototype) {
+      prototype._bindListeners = {};
+      prototype._createBindings();
+    },
+
+    _createBindings: function() {
+      var fx$ = this._propertyEffects;
+      if (fx$) {
+        //console.group(this.name);
+        for (var n in fx$) {
+          //console.group(n);
+          var fx = fx$[n];
+          fx.sort(this._sortPropertyEffects);
+          //console.log(fx);
+          var compiledEffects = fx.map(function(x) {
+            return this._buildEffect(n, x);
+          }, this);
+          this._bindPropertyEffects(n, compiledEffects);
+          //console.log(fxt.join('\n'));
+          //console.groupEnd();
+        }
+        //console.groupEnd();
+      }
+    },
+
+    _sortPropertyEffects: function(a, b) {
+      switch (a.kind) {
+        case 'compute':
+          return -1;
+        case 'notify':
+          return 1;
+         default:
+          return 0;
+      }
+    },
+
+    _buildEffect: function(property, fx) {
+      return this['_' + fx.kind + 'EffectBuilder'](property, fx.effect);
+    },
+
+    _methodEffectBuilder: function(source, effect) {
+      // TODO(sjmiles): validation system requires a blessed
+      // validator effect which needs to be processed first.
+      /*
+      if (typeof this[effect] === 'function') {
+        return [
+          'var validated = this.' + effect + '(value, old)',
+          'if (validated !== undefined) {',
+          '  // recurse',
+          '  this[property] = validated;',
+          '  return;',
+          '}'
+        ].join('\n');
+      }
+      */
+      //
+      return 'this.' + effect + '(this._data.' + source + ', old);'
+    },
+
+    _bindEffectBuilder: function(source, effect) {
+      var paths = effect.split('.');
+      var id = paths.shift();
+      var property = paths.join('.');
+      if (property) {
+        this._addBindListener(source, id, property);
+      } else {
+        property = 'textContent';
+      }
+      return 'this.$.' + id + '.' + property + ' = ' 
+        + 'this._data.' + source + ';'
+    },
+
+    _bindPropertyEffects: function(property, effects) {
+      var defun = {
+        get: function() {
+          return this._data[property];
+        }
+      }
+      if (effects.length) {
+        // combine effects
+        effects = effects.join('\n\t\t');
+        // construct effector
+        var effector = '_' + property + 'Effector';
+        this[effector] = new Function('old', effects);
+        // construct setter body
+        var body  = '\tvar old = this._setData(\'' + property + '\', value);\n'
+          + '\tif (value !== old) {\n'
+            + '\t\tthis.' + effector + '(old);\n' 
+          + '\t}';
+        var setter = new Function('value', body);
+        // ReadOnly properties have a private setter only
+        if (this.isReadOnlyProperty(property)) {
+          this['_set_' + property] = setter;
+        }
+        // other properties have a proper setter 
+        else {
+          defun.set = setter;
+        }
+      }
+      Object.defineProperty(this, property, defun);
+      //var prop = Object.getOwnPropertyDescriptor(this, property);
+      //console.log(prop.set ? prop.set.toString() : '(read-only)');
+    },
+
+    _notifyEffectBuilder: function(source) {
+      return 'this._notifyChange(\'' + source + '\')';
+    },
+
+    _computeEffectBuilder: function(source, effect) {
+      return 'this.' + effect.property 
+        + ' = this.' + effect.method + '(this._data.' + source + ');';
+    },
+
+    _annotationEffectBuilder: function(source, binding) {
+      var target = binding.name || 'textContent';
+      if (binding.kind !== 'text' && binding.kind !== 'attribute') {
+        console.warn(binding.kind);
+        return;
+      }
+      if (target !== 'textContent') {
+        this._addAnnotatedListener(source, binding.index, target);
+      }
+      return this._bindAnnotationProperty(source, target, binding.index);
+    },
+
+    _bindAnnotationProperty: function(source, target, index) {
+      return 'this._nodes[' + index + '].' + target 
+          + ' = this._data.' + source + ';';
+    },
+
+    _addBindListener: function(source, id, property) {
+      var bl = this._requireBindListeners(source);
+      bl.targets.push({
+        id: id,
+        property: property
+      });
+    },
+
+    _addAnnotatedListener: function(source, index, property) {
+      var bl = this._requireBindListeners(source);
+      bl.targets.push({
+        index: index,
+        property: property
+      });
+    },
+
+    _requireBindListeners: function(source) {
+      var bl = this._bindListeners[source];
+      if (!bl) {
+        bl = this._bindListeners[source] = {targets: []};
+      }
+      return bl;
+    }
+
+});
+
+</script>

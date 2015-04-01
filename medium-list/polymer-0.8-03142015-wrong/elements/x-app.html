@@ -1,0 +1,29 @@
+<dom-module id="x-app">
+<template>
+  <div class="flex scroll" id="container">
+    <template id="list" is="x-repeat" items="[[items]]">
+      <x-item item="[[item]]" class="horizontal layout"></x-item>
+    </template>
+  </div>
+</template>
+</dom-module>
+
+<script>
+Polymer({
+  is: 'x-app',
+
+  properties: {
+    items: {
+      type: Array
+    }
+  },
+
+  renderData: function(data) {
+    this.items = data;
+    CustomElements.takeRecords();
+    // TODO(sorvell): temporary until x-repeat has forceRender.
+    this.$.list._job_render.complete();
+  }
+  
+});
+</script>

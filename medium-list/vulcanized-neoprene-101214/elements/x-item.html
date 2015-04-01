@@ -1,0 +1,52 @@
+<template>
+  <x-thing id="t1"></x-thing>
+  <x-thing id="t2"></x-thing>
+  <x-thing id="t3"></x-thing>
+  <x-thing id="t4"></x-thing>
+  <x-thing id="t5"></x-thing>
+  <x-thing id="t6"></x-thing>
+</template>
+
+<script>
+
+  Polymer({
+
+    name: 'x-item',
+
+    published: {
+      item: Object
+    },
+
+    bind: {
+      a: "t1.a",
+      b: "t1.b",
+      c: "t1.c",
+      d: "t2.a",
+      e: "t2.b",
+      f: "t2.c",
+      g: "t3.a",
+      h: "t3.b",
+      i: "t3.c",
+      j: "t4.a",
+      k: "t4.b",
+      l: "t4.c",
+      m: "t5.a",
+      n: "t5.b",
+      o: "t5.c",
+      p: "t6.a",
+      q: "t6.b",
+      r: "t6.c",
+      item: 'itemChanged'
+    },
+
+    hostAttributes: 'horizontal layout',
+
+    itemChanged: function(item) {
+      for (var i in item) {
+        this[i] = item[i];
+      }
+    }
+    
+  });
+
+</script>

@@ -1,0 +1,439 @@
+<script>
+
+// TODO(sjmiles): when binding properties that are themselves bound,
+// we need to do a merge, which increases the complexity considerably.
+// Is there a different way to frame this problem?
+
+// TODO(sjmiles): implement dispose
+
+/*
+ * Datum wraps a concrete data value and provides:
+ * 
+ * - persistent shareable reference
+ * - synchronous notifications on mutations (via method-traps)
+ * 
+ * Multiple DataClients can refer to a single Datum instance. If any of the 
+ * clients change the concrete value, the new value is immediately available
+ * to all the others (single source of truth).
+ * 
+ * e.g. given
+ *   foo.datum = datum1
+ *   bar.datum = datum1
+ * then obviously:
+ *   foo.datum.value == bar.datum.value
+ * 
+ * But now foo and bar can construct accessors such that:
+ *   foo.baz => get() { return this.datum.value };   
+ *   bar.zot => get() { return this.datum.value };  
+ * now, less obviously:
+ *   foo.baz === bar.zot
+ * 
+ * This is the data-binding gambit.     
+ * 
+ * The `watch` method registers a callback function to be invoked
+ * synchronously on data mutations.
+ * 
+ * Watch callbacks are triggered when:
+ *  - data is changed via setValue
+ *  - any of various Array methods are called value (when value is Array)
+ *  - `notify` method is called directly
+ * 
+ * `merge` method collapses a DataClient into this one, combining
+ * all watchers and referers.
+ */
+function Datum(value) {
+  this.value = value;
+  // we require back references so we can merge datums
+  // back references will require dispose pattern for GC,
+  // but then we already have this problem wrt watchers
+  // a 'referer' must be a DataClient
+  this.referers = [];
+}
+
+Datum.prototype = {
+  addReferer: function(client, name) {
+    // TODO(sjmiles): `client` has to be a DataClient right now, could be 
+    // generalized.
+    // TODO(sjmiles): storing this data seems wrong, the Datum doesn't need
+    // to know these details except for merging. Perhaps we should take
+    // a function argument, and let the caller supply a closure with the 
+    // necessary bookkeeping. 
+    this.referers.push({client: client, name: name});
+  },
+  watch: function(notifier) {
+    if (!this.watchers) {
+      this.watchers = [];
+    }
+    this.watchers.push(notifier);
+  },
+  propertiesWatch: function(notifier) {
+    if (!this.propertyWatchers) {
+      this.propertyWatchers = [];
+    }
+    this.propertyWatchers.push(notifier);
+  },
+  // TODO(sjmiles): use accessors? if so, don't forget to fix
+  // `setQuietly` method in DataClient.
+  // TODO(sjmiles): factor out Array decoration
+  setValue: function(value) {
+    var old = this.value;
+    if (old !== value) {
+      this.decorateValue(value);
+      this.value = value;
+      this.notify(old);
+    }
+  },
+  decorateValue: function(value) {
+    // TODO(sjmiles): experimental
+    if (value instanceof Array) {
+      //console.log('decorating Array');
+      // TODO(sjmiles): how costly is this?
+      extend(value, ArrayTrap);
+      // TODO(sjmiles): binding client this way is problematic
+      value.client = this;
+    }
+  },
+  notify: function(old) {
+    this._notify(this.watchers, this.value, old);
+  },
+  notifyProperties: function(old) {
+    this._notify(this.propertyWatchers, this.value, old);
+  },
+  _notify: function(watchers, value, old) {
+    if (watchers) {
+      watchers.forEach(function(w) {
+        w(value, old);
+      });
+    }
+  },
+  merge: function(other) {
+    // `other` may need to do the work
+    if (other.mergePriority) {
+      return other.merge(this);
+    }
+    // transfer all watchers of `other` to `this`
+    if (other.watchers) {
+      this.watchers = (this.watchers || []).concat(other.watchers);
+      other.watchers = null;
+    }
+    // transfer all properties watchers of `other` to `this`
+    if (other.propertyWatchers) {
+      this.propertyWatchers = 
+        (this.propertyWatchers || []).concat(other.propertyWatchers);
+      other.propertyWatchers = null;
+    }
+    // redirect all referers of `other` to `this`
+    var referers = other.referers;
+    if (referers.length) {
+      referers.forEach(function(r) {
+        r.client._refer(r.name, this);
+      }, this);
+      other.referers = null;
+    }
+    // `other` should be free to GC at this point    
+  }
+};
+
+ArrayTrap = Object.create(null);
+['push', 'pop', 'shift', 'unshift', 'splice'].forEach(function(n) {
+  ArrayTrap[n] = function() {
+    //console.log('Array.%s notify', n);
+    Array.prototype[n].apply(this, arguments);
+    this.client.notify(this);
+  };
+});
+
+// TODO(sjmiles): can we avoid hand-mapping POJO properties to view-model?
+// Right now all bindable properties are instances of Datum. Imagine that 
+// there are bindable properties of the form Datum.[path].
+// Setting such a property manually would require using a setter,
+// [Datum].setValue(path, value) to be observed. Automated indirections 
+// (DOM bindings, computed) could do this transparently.
+// So <span>{{item.foo}}</span> would just work. 
+// 'item.spuz': 'calculateSpuz' would just work.
+// Property bindings could also work, for example:
+// <td-input value:="item.value">
+// Could bind in such a way that (already observable) setValue to `value`
+// in td-input would trigger watches on `item.value`. Also changes in `item` 
+// could notify `item.value` (dirty-checking? would need to cache a value).
+// Could `item.value` be the single-source of truth for such a binding?
+// N-way bindings, like item.flarn => foo => record.spuz would
+// require actual propagation (so, no single-source of truth).
+// Suggestion: write code here to simulate the concept.
+// TODO(sjmiles): here is that code.
+var PathDatum = function(model, path) {
+  this.referers = [];
+  this.model = model;
+  this.path = path;
+  // if the model changes, we change (no dirty check)
+  this.model.watch(this.selfNotify.bind(this));
+  // we must 'refer' to the model because it may get merged
+  this.model.addReferer(this, 'model');
+  // TODO(sjmiles): experimental: always propagate propertiesChange notification
+  this.propertiesWatch(function() {
+    // TODO(sjmiles): closure here for debugging/tracing
+    this.notify();
+  }.bind(this));
+};
+PathDatum.prototype = Object.create(Datum.prototype);
+extend(PathDatum.prototype, {
+  mergePriority: true,
+  _refer: function(name, datum) {
+    // model has been merged into another datum
+    this.model = datum;
+  },
+  notify: function() {
+    //this.selfNotify();
+    this.model.notifyProperties();
+  },
+  selfNotify: function() {
+    Datum.prototype.notify.call(this);
+  },
+  set value(value) {
+    var o = this.model.value;
+    if (o) {
+      o[this.path] = value;
+    }
+  },
+  get value() {
+    var o = this.model.value;
+    return o && o[this.path];
+  }
+});
+
+var _defineProperty = function(name, datum) {
+  this._refer(name, datum);
+  Object.getPrototypeOf(this)._defineAccessors(name);
+};
+  
+/*
+ * DataClient implements a data-store whose properties can be:
+ * 
+ * - shared among DataClients (aka _bound_)
+ * - observed for mutations
+ * - computed from dependent properties
+ * 
+ * `Publishing` a property on a DataClient:
+ * 
+ * - creates a Datum instance mapped to the property name
+ * - installs (as needed) get/set accessors (on the prototype) for the
+ *   property name that reference the mapped Datum instance.
+ * - if a method called `<name>Changed` exists, use this 
+ *   method as a `watch` callback. 
+ * 
+ * A sugaring system is implemented to set up relationships at
+ * init-time from meta-data declarations on the instance.
+ * 
+ * // `published` identifies property names to publish at init-time.
+ * // TODO(sjmiles): use a map to support initial values
+ * published: [
+ *   'foo',
+ *   'bar'
+ * ],
+ * // `watched` object maps properties to names of methods to use for `watch`
+ * // callbacks. Compound watches are supported.
+ * published: [
+ *   foo: 'doUpdates',
+ *   'foo bar baz': 'otherUpdates'
+ * ],
+ * // `computed` object maps properties to faux method-invocations. The 
+ * // right-side is parsed to construct a CompoundWatch whose notify callback 
+ * // computes the value of the left-side.
+ * computed: [
+ *   foo: 'computeFoo(bar)',
+ *   baz: 'computeBaz(foo, zot, narg)'
+ * ]
+ *  
+ */
+DataClient = {
+  published: [],
+  watched: {},
+  computed: {},
+  init: function() {
+    this._data = {};
+    this._autoWatches = {};
+    // TODO(sjmiles): there's a fair amount of room in here for
+    // desugaring prototype declarations as pre-process step
+    // TODO(sjmiles): might need new name. `Publish` no longer means 
+    // 'make public', now it means 'make bindable/observable'
+    this.publishProperties(this.published);
+    // TODO(sjmiles): order matters, which is a problem with this sugaring
+    this.defineComputedProperties(this.computed);
+    this.watchProperties(this.watched);
+  },
+  publishProperties: function(properties) {
+    properties.forEach(this.publishProperty, this)
+  },
+  publishProperty: function(property) {
+    this._defineProperty(property);
+    // TODO(sjmiles): awkward duplicate prevention
+    if (!this._autoWatches[property]) {
+      this._autoWatches[property] = true;
+      // auto-watch feature
+      // TODO(sjmiles): consider eliminating this feature in favor
+      // of explicit annotation
+      var watchName = property + 'Changed';
+      if (!this[watchName]) {
+        return;
+      }
+      if (Polymer.log.watches) {
+        console.log('[autoWatch] [%s].[%s] (%s)', this.localName, property, watchName);
+        this.watch(property, function() {
+          console.log('[%s].%s()', this.localName, watchName);
+          this[watchName].apply(this, arguments);
+        });
+      } else {
+        this.watch(property, this[watchName]);
+      }
+    }
+  },
+  notifyChange: function(name) {
+    Polymer.log.watches && console.log('[notifyChange]: [%s]', name);
+    var datum = this._data[name];
+    datum.notify(datum.value);
+  },
+  notifyPropertiesChange: function(name) {
+    Polymer.log.watches && console.log('[notifyPropertiesChange]: [%s]', name);
+    var datum = this._data[name];
+    datum.notifyProperties(datum.value);
+  },
+  watch: function(name, notify) {
+    this._data[name].watch(function() {
+      //Polymer.log.watches && console.log('[watch]: triggered for [%s]', name);
+      notify.apply(this, arguments);
+    }.bind(this));
+  },
+  // TODO(sjmiles): name fail
+  propertiesWatch: function(name, notify) {
+    this._data[name].propertiesWatch(function() {
+      //Polymer.log.watches && console.log('[watch]: triggered for [%s]', name);
+      notify.apply(this, arguments);
+    }.bind(this));
+  },
+  watchProperties: function(properties) {
+    if (Polymer.log.watches) {
+      for (var n in properties) {
+        var method = properties[n];
+        var fn = this[method];
+        this.compoundWatch(n.split(' '), function() {
+          console.log('[watchProperties] %s => %s()', n, method);
+          fn.apply(this, arguments);
+        });
+      }
+    } else {
+      for (var n in properties) {
+        this.compoundWatch(n.split(' '), this[properties[n]]);
+      }
+    }
+  },
+  defineComputedProperties: function(computed) {
+    for (var n in computed) {
+      this.defineComputedProperty(n, computed[n]);
+    }
+  },
+  defineComputedProperty: function(name, expression) {
+    this.publishProperty(name);
+    var parts = expression.match(/(.*)\((.*)\)/); 
+    var method = this[parts[1]];
+    var args = parts[2].replace(/ /g, '').split(',');
+    this.compoundWatch(args, function() {
+      Polymer.log.watches && console.log('[compute] [%s]', name, arguments);
+      this[name] = method.apply(this, arguments);
+    });
+  },
+  compoundWatch: function(names, notify) {
+    // TODO(sjmiles): needs factoring
+    //
+    // fallback to normal watch if we are not truly compound
+    if (names.length === 1) {
+      var name = names[0];
+      this.publishProperty(name);
+      this.watch(name, notify);
+      return;
+    }
+    var debouncing = false, 
+        data = this._data,
+        async = this.async.bind(this),
+        client = this
+        ;
+    names.forEach(function(n) {
+      client.publishProperty(n);
+      data[n].watch(function(value) {
+        //Polymer.log.watches && console.log('[compoundWatch]: debounce [%s]', n);
+        if (!debouncing) {
+          debouncing = true;
+          // TODO(sjmiles): if a property in `name` is itself computed 
+          // we fail to debounce properly. 
+          async(function() {
+            debouncing = false;
+            var args = [];
+            names.forEach(function(n) {
+              args.push(client[n])
+            });
+            //Polymer.log.watches && console.log('[compoundWatch]: async-notify ', names, args);
+            notify.apply(client, args);
+          });
+        }
+      });
+    });
+  },
+  // cause this[name] and target[targetName] to refer to the same datum
+  // TODO(sjmiles): change call signature to (name, target[, targetName])
+  bindProperty: function(name, targetName, target) {
+    //
+    // TODO(sjmiles): which datum is 'old' and which is 'new' is arbitrary atm 
+    // (one value is discarded)
+    //
+    // merge old into new
+    target._data[targetName].merge(this._data[name], name);
+  },
+  // TODO(sjmiles): general-purpose utility method should be implemented
+  // elsewhere?
+  async: function(method) {
+    var handled = false;
+    var handle = function() {
+      if (!handled) {
+        handled = true;
+        method.call(this);
+      }
+    }.bind(this);
+    // minimize latency by racing async modalities
+    setTimeout(handle);
+    requestAnimationFrame(handle);
+  },
+  setQuietly: function(name, value) {
+    this._data[name].value = value;
+  },
+  _defineProperty: function(name) {
+    if (!(name in this._data)) {
+      this._refer(name, new Datum(null));
+      // install accessors on our prototype (if needed)
+      Object.getPrototypeOf(this)._defineAccessors(name);
+    }
+  },
+  _defineAccessors: function(name) {
+    if (!this.hasOwnProperty(name)) {
+      Object.defineProperty(this, name, {
+        get: function() {
+          return this._data[name].value;
+        },
+        set: function(value) {
+          Polymer.log.watches && console.group('[%s.set] [%s] = [%s]', this.localName, name, value);
+          this._data[name].setValue(value);
+          Polymer.log.watches && console.groupEnd();
+        }
+      });      
+    }
+  },
+  _refer: function(name, datum) {
+    this._data[name] = datum;
+    datum.addReferer(this, name);
+  },
+  _datum: function(name) {
+    return this._data[name];
+  }
+};
+
+Base.features.push(DataClient);
+
+</script>

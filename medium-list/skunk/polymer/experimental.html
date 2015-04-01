@@ -1,0 +1,24 @@
+<script>
+
+  Base.features.push({
+    keyPresses: {},
+    init: function() {
+      for (var n in this.keyPresses) {
+        for (n in this.keyPresses) {
+          if (typeof n === 'string') {
+            this.keyPresses[Event.prototype.keys[n]] = this.keyPresses[n];
+          }
+        }
+        this.addEventListener('keypress', this.keyPressesFeatureHandler);
+        break;
+      }
+    },
+    keyPressesFeatureHandler: function(e) {
+      var method = this.keyPresses[e.keyCode];
+      if (method && this[method]) {
+        return this[method](e.keyCode, e);
+      }
+    }
+  });
+  
+</script>

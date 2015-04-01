@@ -1,0 +1,134 @@
+<template>
+  <div id="boundChild" value="{{value}}" negvalue="{{!bool}}" attrvalue$="{{attrvalue}}"
+    computedvalue="{{computedvalue}}" computedvaluetwo="{{computedvaluetwo}}" camel-case="{{value}}"></div>
+</template>
+<script>
+  Polymer({
+    is: 'x-basic',
+    properties: {
+      value: {
+        observer: 'valueChanged'
+      },
+      computedvalue: {
+        computed: 'computeValue(value)',
+        observer: 'computedvalueChanged'
+      },
+      computedvaluetwo: {
+        computed: 'computeValue(valuetwo)',
+        observer: 'computedvaluetwoChanged'
+      },
+      notifyingvalue: {
+        type: Number,
+        notify: true,
+        computed: 'notifyingvalueChanged'
+      },
+      computednotifyingvalue: {
+        type: Number,
+        notify: true,
+        computed: 'computeNotifyingValue(notifyingvalue)'
+      },
+      computedFromMultipleValues: {
+        type: Number,
+        notify: true,
+        computed: 'computeFromMultipleValues(sum1, sum2, divide)',
+        observer: 'computedFromMultipleValuesChanged'
+      },
+      camelNotifyingValue: {
+        type: Number,
+        notify: true
+      },
+      readonlyvalue: {
+        type: Number,
+        readOnly: true,
+        notify: true,
+        observer: 'readonlyvalueChanged'
+      }
+    },
+    observers: {
+      'dep1 dep2 dep3': 'multipleDepChangeHandler'
+    },
+    valueChanged: function() {},
+    computeValue: function(val) {
+      return val + 1;
+    },
+    computedvalueChanged: function() {},
+    computedvaluetwoChanged: function() {},
+    notifyingvalueChanged: function() {},
+    readonlyvalueChanged: function() {},
+    computeNotifyingValue: function(val) {
+      return val + 2;
+    },
+    computeFromMultipleValues: function(sum1, sum2, divide) {
+      return (sum1 + sum2) / divide;
+    },
+    computedFromMultipleValuesChanged: function() {},
+    multipleDepChangeHandler: function() {}
+  });
+</script>
+
+<template>
+  <x-basic id="basic1" 
+    value="{{boundvalue}}"
+    notifyingvalue="{{boundnotifyingvalue}}"
+    camel-notifying-value="{{boundnotifyingvalue}}"
+    computedvalue="{{boundcomputedvalue}}"
+    computednotifyingvalue="{{boundcomputednotifyingvalue}}"
+    readonlyvalue="{{boundreadonlyvalue}}">
+  </x-basic>
+  <x-basic id="basic2"
+    value="[[boundvalue]]"
+    notifyingvalue="[[boundnotifyingvalue]]"
+    computedvalue="[[boundcomputedvalue]]"
+    computednotifyingvalue="[[boundcomputednotifyingvalue]]">
+  </x-basic>
+</template>
+<script>
+  Polymer({
+    is: 'x-compose',
+    observers: {
+      boundvalue: 'boundvalueChanged',
+      boundnotifyingvalue: 'boundnotifyingvalueChanged',
+      boundcomputedvalue: 'boundcomputedvalueChanged',
+      boundcomputednotifyingvalue: 'boundcomputednotifyingvalueChanged',
+      boundreadonlyvalue: 'boundreadonlyvalueChanged'
+    },
+    boundvalueChanged: function() {},
+    boundnotifyingvalueChanged: function() {},
+    boundcomputedvalueChanged: function() {},
+    boundcomputednotifyingvalueChanged: function() {},
+    boundreadonlyvalueChanged: function() {}
+  });
+</script>
+
+
+<script>
+  Polymer({
+    is: 'x-reflect',
+    properties: {
+      reflectedobject: {
+        type: Object,
+        reflectToAttribute: true
+      },
+      reflectedarray: {
+        type: Array,
+        reflectToAttribute: true
+      },
+      reflectedNumber: {
+        type: Number,
+        reflectToAttribute: true
+      },
+      reflectedstring: {
+        type: String,
+        reflectToAttribute: true
+      },
+      reflectedboolean: {
+        type: Boolean,
+        reflectToAttribute: true
+      },
+      reflecteddate: {
+        type: Date,
+        reflectToAttribute: true
+      }
+    }
+  });
+</script>

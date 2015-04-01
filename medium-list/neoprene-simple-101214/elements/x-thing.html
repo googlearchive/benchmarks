@@ -1,0 +1,68 @@
+<style>
+  x-thing .message {
+    box-sizing: border-box;
+    height: 80px;
+    padding: 4px;
+    padding-left: 77px;
+    line-height: 167%;
+    cursor: default;
+    background-color: white;
+    position: relative;
+    color: black;
+    background-repeat: no-repeat;
+    background-position: 10px 10px;
+    background-size: 60px;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  x-thing .from {
+    display: inline;
+    font-weight: bold;
+  }
+  
+  x-thing .timestamp {
+    margin-left: 10px;
+    font-size: 12px;
+    opacity: 0.8;
+  }
+  
+</style>
+
+
+<template>
+  
+
+  <div class="message">
+    <span id="from" class="from"></span>
+    <span id="timestamp" class="timestamp"></span>
+    <div id="subject" class="subject"></div>
+  </div>
+
+</template>
+<script>
+  Polymer({
+    name: 'x-thing',
+
+    set a(value) {
+      this.$.from.textContent = value;
+      this.aChanged();
+    },
+
+    set b(value) {
+      this.$.timestamp.textContent = value;
+      this.bChanged();
+    },
+
+    set c(value) {
+      this.$.subject.textContent = value;
+      this.cChanged();
+    },
+
+    aChanged: function() {},
+
+    bChanged: function() {},
+    
+    cChanged: function() {}
+
+  });
+</script>

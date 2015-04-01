@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+
+  <meta charset="utf-8">
+  <title>app</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="import" href="../assets/data.html">
+  <link rel="import" href="assets/layout.html">
+  <script>
+    // define simple elements
+    var proto = Object.create(HTMLElement.prototype);
+    proto.createdCallback = function() {
+    };
+    proto.attachedCallback = function() {
+    };
+    proto.detachedCallback = function() {
+    };
+    document.registerElement('x-thing', {prototype: Object.create(proto)});
+    document.registerElement('x-item', {prototype: Object.create(proto)});
+    document.registerElement('x-repeater', {prototype: Object.create(proto)});
+  </script>
+
+  <script src="../../../perf-lib/perf.js"></script>
+  <script>
+    console.perf();
+  </script>
+
+  <style>
+    .message {
+      box-sizing: border-box;
+      height: 80px;
+      padding: 4px;
+      padding-left: 77px;
+      line-height: 167%;
+      cursor: default;
+      background-color: white;
+      position: relative;
+      color: black;
+      background-repeat: no-repeat;
+      background-position: 10px 10px;
+      background-size: 60px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .from {
+      display: inline;
+      font-weight: bold;
+    }
+    
+    .timestamp {
+      margin-left: 10px;
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    
+  </style>
+
+</head>
+<body fullbleed vertical layout>
+  
+  <div flex scroll></div>
+
+  <script>
+
+
+    function makeThing(a, b, c) {
+      var e = document.createElement('x-thing');
+      var root = e;
+      var message = document.createElement('div');
+      root.appendChild(message);
+      message.classList.add('message');
+      message.appendChild(document.createTextNode(' '));
+      message.appendChild(makeContentElement('span', 'from', a));
+      message.appendChild(document.createTextNode(' '));
+      message.appendChild(makeContentElement('span', 'timestamp', b));
+      message.appendChild(document.createTextNode(' '));
+      message.appendChild(makeContentElement('div', 'subject', c));
+      message.appendChild(document.createTextNode(' '));
+      return e;
+    }
+
+    function makeContentElement(tag, className, content) {
+      var e = document.createElement(tag);
+      e.classList.add(className);
+      e.textContent = content;
+      return e;
+    }
+
+    function makeItem(item) {
+      var i = document.createElement('x-item');
+      i.setAttribute('horizontal', '');
+      i.setAttribute('layout', '');
+      var root = i;
+      root.appendChild(document.createTextNode(' '));
+      root.appendChild(makeThing(item.a, item.b, item.c));
+      root.appendChild(document.createTextNode(' '));
+      root.appendChild(makeThing(item.d, item.e, item.f));
+      root.appendChild(document.createTextNode(' '));
+      root.appendChild(makeThing(item.g, item.h, item.i));
+      root.appendChild(document.createTextNode(' '));
+      root.appendChild(makeThing(item.j, item.k, item.l));
+      root.appendChild(document.createTextNode(' '));
+      root.appendChild(makeThing(item.m, item.n, item.o));
+      root.appendChild(document.createTextNode(' '));
+      root.appendChild(makeThing(item.q, item.r, item.s));
+      root.appendChild(document.createTextNode(' '));
+      return i;
+    }
+
+    function makeRepeater(data) {
+      var r = document.createElement('x-repeater');
+      r.style.display = 'block';
+      var root = r;
+      for (var i=0, l=data.length, item; (i<l) && (item=data[i]); i++) {
+        root.appendChild(makeItem(item));
+      }
+      return r;
+    }
+
+    var container = document.querySelector('[scroll]');
+    container.appendChild(makeRepeater(data))
+    console.perfEnd();
+  </script>
+  
+</body>
+</html>

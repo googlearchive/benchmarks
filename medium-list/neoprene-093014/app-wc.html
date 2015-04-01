@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+
+  <meta charset="utf-8">
+  <title>app</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="webcomponentsjs/webcomponents.js"></script>
+
+  <link rel="import" href="elements.html">
+  <link rel="import" href="../assets/data.html">
+  <style>
+    [scroll] {
+      overflow: auto;
+    }
+  </style>
+  <script src="../../../perf-lib/perf.js"></script>
+  <script>
+    console.perf();
+  </script>
+
+</head>
+<body fullbleed vertical layout>
+  
+  <x-repeater id="list" kind="x-item" flex scroll></x-repeater>
+  
+  <!-- data -->
+  <script>
+    
+    
+  </script>
+  
+  <!-- perf measure -->
+  <script>
+  addEventListener('WebComponentsReady', function() {
+    var $ = document.querySelector.bind(document);
+    $('#list').items = data;
+    console.perfEnd();
+  });
+  </script>
+  
+</body>
+</html>

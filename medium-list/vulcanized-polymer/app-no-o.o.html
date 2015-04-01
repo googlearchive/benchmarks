@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+
+  <meta charset="utf-8">
+  <title>app</title>
+  <script>Object.observe = null;</script>
+  <script src="../../../perf-lib/perf-load.js"></script>
+  <script src="components/platform/platform.js"></script>
+  <link rel="import" href="vulcanized.html">
+  <style>
+    [scroll] {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  </style>
+  
+</head>
+<body fullbleed vertical layout>
+  
+  <template>
+    <div flex scroll>
+      <template id="list" repeat="{{}}">
+        <x-item item="{{}}"></x-item>
+      </template>
+    </div>
+  </template>
+
+  <script>
+    addEventListener('polymer-ready', function() {
+      var template = document.querySelector('template');
+      console.perf();
+      document.body.appendChild(stampTemplate(template));
+      var list = document.querySelector('#list');
+      list.model = data;
+      console.perfEnd();
+    });
+  </script>
+
+  
+</body>
+</html>

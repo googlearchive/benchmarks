@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+
+  <meta charset="utf-8">
+  <title>app</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="components/webcomponentsjs/webcomponents.js"></script>
+  <script>Polymer = {dom: 'shadow'}</script>
+  <link rel="import" href="elements.html">
+  <link rel="import" href="../assets/data.html">
+  <link rel="import" href="components/layout/layout.html">
+  <style>
+    [scroll] {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  </style>
+  <script src="../../../perf-lib/perf.js"></script>
+
+</head>
+<body class="fullbleed vertical layout">
+
+  <script>
+    addEventListener('WebComponentsReady', function() {
+      console.perf();
+      var app = document.createElement('x-app');
+      document.body.appendChild(app);
+      app.renderData(data);
+      console.perfEnd();
+    });
+  </script>
+
+</body>
+</html>

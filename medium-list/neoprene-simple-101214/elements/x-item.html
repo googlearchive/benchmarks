@@ -1,0 +1,39 @@
+<template>
+  <x-thing id="t1"></x-thing>
+  <x-thing id="t2"></x-thing>
+  <x-thing id="t3"></x-thing>
+  <x-thing id="t4"></x-thing>
+  <x-thing id="t5"></x-thing>
+  <x-thing id="t6"></x-thing>
+</template>
+
+<script>
+
+  Polymer({
+    name: 'x-item',
+    
+    hostAttributes: 'horizontal layout',
+    
+    set item(item) {
+      this.$.t1.a = item.a;
+      this.$.t1.b = item.b;
+      this.$.t1.c = item.c;
+      this.$.t2.a = item.d;
+      this.$.t2.b = item.e;
+      this.$.t2.c = item.f;
+      this.$.t3.a = item.g;
+      this.$.t3.b = item.h;
+      this.$.t3.c = item.i;
+      this.$.t4.a = item.j;
+      this.$.t4.b = item.k;
+      this.$.t4.c = item.l;
+      this.$.t5.a = item.m;
+      this.$.t5.b = item.n;
+      this.$.t5.c = item.o;
+      this.$.t6.a = item.p;
+      this.$.t6.b = item.q;
+      this.$.t6.c = item.r;
+    }
+  });
+
+</script>

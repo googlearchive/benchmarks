@@ -1,0 +1,43 @@
+<link rel="import" href="../polymer/polymer.html">
+
+<script>
+
+  Polymer({
+    name: 'x-repeater',
+    published: [
+      'items',
+      'kind'
+    ],
+    created: function() {
+      this.style.display = 'block';
+      this.attributeChanged('kind');
+    },
+    attributeChanged: function(name) {
+      if (name === 'kind') {
+        this.kind = this.getAttribute('kind');
+      }
+    },
+    itemsChanged: function() {
+      this.root.textContent = '';
+      if (this.items && this.kind) {
+        for (var i=0, row, item; item=this.items[i]; i++) {
+          row = document.createElement(this.kind);
+          // TODO(sjmiles): simple assignment, not a binding
+          //row.item = item;
+          // TODO(sjmiles): binding here allows notifyProperties to
+          // propagate up the binding chain 
+          // TODO(sjmiles): imperative PathDatum binding, how to sugar?
+          new PathDatum(this._datum('items'), i).merge(row._datum('item'));
+          // TODO(sjmiles): the binding has caused datum to be different
+          // there is no analog to this elsewhere, probably because
+          // I have cheesed the timing in all other cases (de facto, binding 
+          // comes before data init in all other scenarios in the test apps)
+          row._datum('item').selfNotify();
+          // render row
+          this.root.appendChild(row);
+        }
+      }
+    }
+  });
+
+</script>
