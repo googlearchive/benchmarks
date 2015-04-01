@@ -1,3 +1,12 @@
+<!--
+@license
+Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
 <script>
 
 // TODO(sjmiles): when binding properties that are themselves bound,
@@ -8,36 +17,36 @@
 
 /*
  * Datum wraps a concrete data value and provides:
- * 
+ *
  * - persistent shareable reference
  * - synchronous notifications on mutations (via method-traps)
- * 
- * Multiple DataClients can refer to a single Datum instance. If any of the 
+ *
+ * Multiple DataClients can refer to a single Datum instance. If any of the
  * clients change the concrete value, the new value is immediately available
  * to all the others (single source of truth).
- * 
+ *
  * e.g. given
  *   foo.datum = datum1
  *   bar.datum = datum1
  * then obviously:
  *   foo.datum.value == bar.datum.value
- * 
+ *
  * But now foo and bar can construct accessors such that:
- *   foo.baz => get() { return this.datum.value };   
- *   bar.zot => get() { return this.datum.value };  
+ *   foo.baz => get() { return this.datum.value };
+ *   bar.zot => get() { return this.datum.value };
  * now, less obviously:
  *   foo.baz === bar.zot
- * 
- * This is the data-binding gambit.     
- * 
+ *
+ * This is the data-binding gambit.
+ *
  * The `watch` method registers a callback function to be invoked
  * synchronously on data mutations.
- * 
+ *
  * Watch callbacks are triggered when:
  *  - data is changed via setValue
  *  - any of various Array methods are called value (when value is Array)
  *  - `notify` method is called directly
- * 
+ *
  * `merge` method collapses a DataClient into this one, combining
  * all watchers and referers.
  */
@@ -52,12 +61,12 @@ function Datum(value) {
 
 Datum.prototype = {
   addReferer: function(client, name) {
-    // TODO(sjmiles): `client` has to be a DataClient right now, could be 
+    // TODO(sjmiles): `client` has to be a DataClient right now, could be
     // generalized.
     // TODO(sjmiles): storing this data seems wrong, the Datum doesn't need
     // to know these details except for merging. Perhaps we should take
-    // a function argument, and let the caller supply a closure with the 
-    // necessary bookkeeping. 
+    // a function argument, and let the caller supply a closure with the
+    // necessary bookkeeping.
     this.referers.push({client: client, name: name});
   },
   watch: function(notifier) {
@@ -105,7 +114,7 @@ Datum.prototype = {
       }, this);
       other.referers = null;
     }
-    // `other` should be free to GC at this point    
+    // `other` should be free to GC at this point
   }
 };
 
@@ -120,22 +129,22 @@ ArrayTrap = Object.create(null);
 
 /*
  * DataClient implements a data-store whose properties can be:
- * 
+ *
  * - shared among DataClients (aka _bound_)
  * - observed for mutations
  * - computed from dependent properties
- * 
+ *
  * `Publishing` a property on a DataClient:
- * 
+ *
  * - creates a Datum instance mapped to the property name
  * - installs (as needed) get/set accessors (on the prototype) for the
  *   property name that reference the mapped Datum instance.
- * - if a method called `<name>Changed` exists, use this 
- *   method as a `watch` callback. 
- * 
+ * - if a method called `<name>Changed` exists, use this
+ *   method as a `watch` callback.
+ *
  * A sugaring system is implemented to set up relationships at
  * init-time from meta-data declarations on the instance.
- * 
+ *
  * // `published` identifies property names to publish at init-time.
  * // TODO(sjmiles): use a map to support initial values
  * published: [
@@ -148,14 +157,14 @@ ArrayTrap = Object.create(null);
  *   foo: 'doUpdates',
  *   'foo bar baz': 'otherUpdates'
  * ],
- * // `computed` object maps properties to faux method-invocations. The 
- * // right-side is parsed to construct a CompoundWatch whose notify callback 
+ * // `computed` object maps properties to faux method-invocations. The
+ * // right-side is parsed to construct a CompoundWatch whose notify callback
  * // computes the value of the left-side.
  * computed: [
  *   foo: 'computeFoo(bar)',
  *   baz: 'computeBaz(foo, zot, narg)'
  * ]
- *  
+ *
  */
 DataClient = {
   published: [],
@@ -225,7 +234,7 @@ DataClient = {
   },
   defineComputedProperty: function(name, expression) {
     this.publishProperty(name);
-    var parts = expression.match(/(.*)\((.*)\)/); 
+    var parts = expression.match(/(.*)\((.*)\)/);
     var method = this[parts[1]];
     var args = parts[2].replace(/ /g, '').split(',');
     this.compoundWatch(args, function() {
@@ -241,7 +250,7 @@ DataClient = {
       this.watch(names[0], notify);
       return;
     }
-    var debouncing = false, 
+    var debouncing = false,
         data = this._data,
         async = this.async.bind(this),
         client = this
@@ -251,8 +260,8 @@ DataClient = {
         Polymer.log.watches && console.log('[compoundWatch]: debounce [%s]', n);
         if (!debouncing) {
           debouncing = true;
-          // TODO(sjmiles): if a property in `name` is itself computed 
-          // we fail to debounce properly. 
+          // TODO(sjmiles): if a property in `name` is itself computed
+          // we fail to debounce properly.
           // I don't see how we can debounce properly unless we study
           // the dependency graph. :(
           async(function() {
@@ -264,7 +273,7 @@ DataClient = {
             Polymer.log.watches && console.log('[compoundWatch]: async-notify ', names, args);
             notify.apply(client, args);
           });
-        } 
+        }
       });
     });
   },
@@ -272,7 +281,7 @@ DataClient = {
   // TODO(sjmiles): change call signature to (name, target[, targetName])
   bindProperty: function(name, targetName, target) {
     //
-    // TODO(sjmiles): which datum is 'old' and which is 'new' is arbitrary atm 
+    // TODO(sjmiles): which datum is 'old' and which is 'new' is arbitrary atm
     // (one value is discarded)
     //
     // merge old into new
@@ -308,7 +317,7 @@ DataClient = {
         set: function(value) {
           this._data[name].setValue(value);
         }
-      });      
+      });
     }
   },
   _refer: function(name, datum) {

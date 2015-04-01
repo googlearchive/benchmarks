@@ -1,3 +1,12 @@
+<!--
+@license
+Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
 <script>
 
   var attributes = function(node, attr$) {
@@ -5,14 +14,14 @@
       node.setAttribute(a, '');
     });
   };
-  
+
   Base = {
     // (semi-)pluggable features for Base
     features: [],
     installFeatures: function() {
       // simple engine to modularize features
       Base.features.forEach(function(f) {
-        extend(Base, f);  
+        extend(Base, f);
       });
       delete Base.init;
       delete Base.installFeatures;
@@ -26,10 +35,10 @@
         prototype.parseTemplateAnnotations(prototype._template);
       }
       // make a list of names that have properties of the form <name>Changed.
-      // DataClient can use this list to efficiently associate *Changed 
+      // DataClient can use this list to efficiently associate *Changed
       // methods with published properties.
-      // TODO(sjmiles): maybe remove this feature completely in favor of 
-      // explicit annotations in the prototype.  
+      // TODO(sjmiles): maybe remove this feature completely in favor of
+      // explicit annotations in the prototype.
       //prototype.precomputeNotifierCandidates();
     },
     createdCallback: function() {
@@ -79,5 +88,5 @@
       return document.importNode(template.content, true);
     }
   };
-  
+
 </script>

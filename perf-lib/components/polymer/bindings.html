@@ -1,20 +1,29 @@
+<!--
+@license
+Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
 <script>
 
   //
   // `marshalBindings` consumes template annotations to:
-  // 
+  //
   // 1. set up event delegation machinery
   // 2. set up binding machinery and instance data
   //
   // `updateBindings` can be called to perform propagation of model data to DOM
   // on demand
-  
+
   Base.features.push({
     init: function() {
       this._model = this;
       this._bindings = [];
     },
-    // instance binding data 
+    // instance binding data
     marshalBindings: function() {
       if (this._template.map) {
         this._template.map.forEach(function(annotation) {
@@ -42,7 +51,7 @@
     implementListener: function(node, name, method) {
       // TODO(sjmiles): perhaps implementListener should
       // be factored even further (i.e. into a separate module/feature?)
-      // because it's conceptually separable from the details of template 
+      // because it's conceptually separable from the details of template
       // annotation processing.
       var ctrlr = this;
       node.addEventListener(name, function(e) {
@@ -55,14 +64,14 @@
     implementBinding: function(node, kind, name, property, mode) {
       // TODO(sjmiles): perhaps implementBinding should
       // be factored even further (i.e. into a separate module/feature?)
-      // because it's conceptually separable from the details of template 
+      // because it's conceptually separable from the details of template
       // annotation processing.
       switch(kind) {
         case 'text':
           // TODO(sjmiles): baby-step toward path support
           //  - only text bindings
           //  - support exactly one dot (foo.bar)
-          //  - generated fn binds to this, derefs path from model 
+          //  - generated fn binds to this, derefs path from model
           //    (ignores argument)
           /*
           if (property.indexOf('.') >= 0) {
@@ -104,7 +113,7 @@
           };
           break;
         case 'property':
-          // this is a fourth type of binding that utilizes shared storage to 
+          // this is a fourth type of binding that utilizes shared storage to
           // avoid the need to observe and propagate changes
           // TODO(sjmiles): ad-hoc DataClient detection
           if (node._data && (name in node._data)) {
@@ -130,12 +139,12 @@
       var model = this._model;
       this._bindings.forEach(function(b) {
         // TODO(sjmiles): the `fn` are structured so as to be called directly
-        // from `watch` which supplies a `value` argument. We would instead 
+        // from `watch` which supplies a `value` argument. We would instead
         // compose the `fn` to include the model dereference instead of taking
-        // an argument. 
+        // an argument.
         // The conceptual propriety is unclear to me at the moment.
         // Needing to encode `property` in `b` is a cost to the current method.
-        // Doing an extra lookup in `fn` when called from watch (or having a 
+        // Doing an extra lookup in `fn` when called from watch (or having a
         // conditional to avoid doing that) would be a cost the other way.
         if (b.fn) {
           b.fn(model[b.property]);

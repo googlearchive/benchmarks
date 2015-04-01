@@ -1,9 +1,18 @@
+<!--
+@license
+Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
 <script>
 
-/* 
+/*
 
-Scans a template to produce an annotation map that stores expression metadata 
-and information that can be used to associate that metadata with the 
+Scans a template to produce an annotation map that stores expression metadata
+and information that can be used to associate that metadata with the
 corresponding nodes in a template instance.
 
 Supported annotations are:
@@ -24,7 +33,7 @@ Generated data-structure:
       bindings: [
         {
           kind: ['event'|'text'|'attribute'|'property'],
-          mode: ['auto'|''], 
+          mode: ['auto'|''],
           name: '<name>'
           value: '<expression>'
         }
@@ -33,18 +42,18 @@ Generated data-structure:
       parent: <reference to parent annotation>,
       index: <integer index in parent's childNodes collection>
     },
-    ...  
+    ...
   ]
 
-TODO(sjmiles): this module should produce either syntactic metadata 
+TODO(sjmiles): this module should produce either syntactic metadata
 (e.g. double-mustache, double-bracket, star-attr), or semantic metadata
 (e.g. manual-bind, auto-bind, property-bind). Right now it's half and half.
-   
+
 */
 
   Base.features.push({
     findAnnotatedNode: function(root, annote) {
-      return !annote.parent ? root : 
+      return !annote.parent ? root :
         this.findAnnotatedNode(root, annote.parent).childNodes[annote.index];
     },
     parseTemplateAnnotations: function(template) {
@@ -56,8 +65,8 @@ TODO(sjmiles): this module should produce either syntactic metadata
       }
     },
     _parseTemplateNode: function(node, map) {
-      return node.nodeType === Node.TEXT_NODE ? 
-        this._parseTemplateTextNode(node, map) : 
+      return node.nodeType === Node.TEXT_NODE ?
+        this._parseTemplateTextNode(node, map) :
           this._parseTemplateElement(node, map);
     },
     _parseTemplateTextNode: function(node, map) {
@@ -104,7 +113,7 @@ TODO(sjmiles): this module should produce either syntactic metadata
             annotation.bindings.push({
               kind: 'event',
               name: n.slice(3),
-              value: v 
+              value: v
             });
           }
         }
