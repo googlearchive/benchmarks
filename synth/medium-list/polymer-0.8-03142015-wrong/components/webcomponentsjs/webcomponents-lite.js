@@ -34,7 +34,7 @@
       }
     }
     // log flags
-    if (flags.log) {
+    if (flags.log && flags.log.split) {
       var parts = flags.log.split(',');
       flags.log = {};
       parts.forEach(function(f) {
@@ -45,19 +45,11 @@
     }
   }
 
-  // Determine default settings.
-  // If any of these flags match 'native', then force native ShadowDOM; any
-  // other truthy value, or failure to detect native
-  // ShadowDOM, results in polyfill
-  flags.shadow = (flags.shadow || flags.shadowdom || flags.polyfill);
-  if (flags.shadow === 'native') {
-    flags.shadow = false;
-  } else {
-    flags.shadow = flags.shadow || !HTMLElement.prototype.createShadowRoot;
-  }
-
   // construct full dependency list
   var modules = [
+    'URL/URL.js',
+    'WeakMap/WeakMap.js',
+    'MutationObserver/MutationObserver.js',
     'HTMLImports/HTMLImports.js',
     'CustomElements/CustomElements.js',
     'Template/Template.js',
