@@ -16,13 +16,27 @@ To run the benchmarks locally, you’ll need a basic HTTP server to serve your p
 Python 2.x:
 
 ```
+# Cloning the repo
+$ git clone https://github.com/PolymerLabs/benchmarks.git --branch gh-pages --single-branch
+
+# Running the server
 python -m SimpleHTTPServer
+
+# Accessing from browser
+http://127.0.0.1:8000/benchmarks
 ```
 
 Python 3.x:
 
 ```
+# Cloning the repo
+$ git clone https://github.com/PolymerLabs/benchmarks.git --branch gh-pages --single-branch
+
+# Running the server
 python -m http.server
+
+# Accessing from browser
+http://127.0.0.1:8000/benchmarks
 ```
 
 If you don't have Python and just have Node/npm:
